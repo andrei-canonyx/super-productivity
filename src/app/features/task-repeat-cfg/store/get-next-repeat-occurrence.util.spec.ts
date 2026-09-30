@@ -441,6 +441,21 @@ describe('getNextRepeatOccurrence()', () => {
       testCase(cfg, fromDate, startDate, expected);
     });
 
+    it('should skip the non-matching year for a Feb 29 anchor with repeatEvery 2', () => {
+      const startDate = new Date(2024, 1, 29);
+      const lastCreation = new Date(2024, 1, 29);
+      const fromDate = new Date(2024, 2, 1);
+      // 2025 is only 1 year after the start; the next occurrence is 2026,
+      // clamped to Feb 28 as 2026 is not a leap year.
+      const expected = new Date(2026, 1, 28);
+      const cfg = dummyRepeatable('ID1', {
+        repeatCycle: 'YEARLY',
+        repeatEvery: 2,
+        lastTaskCreationDay: getDbDateStr(lastCreation),
+      });
+      testCase(cfg, fromDate, startDate, expected);
+    });
+
     it('should return this year if date hasnt passed yet', () => {
       const startDate = new Date(2021, 11, 25);
       const lastCreation = new Date(2021, 11, 25);

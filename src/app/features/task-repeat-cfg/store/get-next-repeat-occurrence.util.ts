@@ -1,7 +1,6 @@
 import { TASK_REPEAT_WEEKDAY_MAP, TaskRepeatCfg } from '../task-repeat-cfg.model';
 import { getDiffInDays } from '../../../util/get-diff-in-days';
 import { getDiffInMonth } from '../../../util/get-diff-in-month';
-import { getDiffInYears } from '../../../util/get-diff-in-years';
 import { getDiffInWeeks } from '../../../util/get-diff-in-weeks';
 import { dateStrToUtcDate } from '../../../util/date-str-to-utc-date';
 import { getEffectiveLastTaskCreationDay } from './get-effective-last-task-creation-day.util';
@@ -201,7 +200,11 @@ export const getNextRepeatOccurrence = (
       }
 
       for (let i = 0; i < maxYearsToCheck; i++) {
-        const diffInYears = getDiffInYears(startDateDate, checkDate);
+        // checkDate always sits on this year's anchor, so the plain calendar
+        // year difference is exact. getDiffInYears would count the Feb 28
+        // stand-in for a Feb 29 anchor as not yet a full year (2024-02-29 ->
+        // 2025-02-28 = 0), accepting it for any repeatEvery.
+        const diffInYears = checkDate.getFullYear() - startDateDate.getFullYear();
 
         if (
           diffInYears >= 0 &&
