@@ -507,6 +507,29 @@ describe('getNewestPossibleDueDate()', () => {
     });
   });
 
+  describe('MONTHLY month-end rollover', () => {
+    it('returns null before the day-31 occurrence when the previous month is shorter', () => {
+      // Mar 30: the Mar 31 occurrence is not due yet and Feb 28 was already
+      // created. Stepping back from Mar 30 must land in February, not roll
+      // over to Mar 2 and resolve to the future Mar 31.
+      const cfg = dummyRepeatable('ID1', {
+        repeatCycle: 'MONTHLY',
+        repeatEvery: 1,
+        lastTaskCreationDay: '2026-02-28',
+      });
+      testCase(cfg, new Date(2026, 2, 30), new Date(2026, 0, 31), null);
+    });
+
+    it('returns the previous shorter month-end occurrence when it is still missing', () => {
+      const cfg = dummyRepeatable('ID1', {
+        repeatCycle: 'MONTHLY',
+        repeatEvery: 1,
+        lastTaskCreationDay: '2026-01-31',
+      });
+      testCase(cfg, new Date(2026, 2, 30), new Date(2026, 0, 31), new Date(2026, 1, 28));
+    });
+  });
+
   describe('MONTHLY Nth weekday (issue #6040)', () => {
     it('returns the Nth weekday of this month when today equals it', () => {
       // 1st Thursday of Jan 2026 = Jan 1 (Thu). today = Jan 1.
