@@ -20,88 +20,48 @@ export const humanizeTimestamp = (
 
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
-  const diffSeconds = Math.floor(diffMs / 1000);
+  // Floor on the absolute diff so future and past round the same way (towards
+  // zero). Flooring a negative diff would overstate the remaining time.
+  const absDiffMs = Math.abs(diffMs);
+  const diffSeconds = Math.floor(absDiffMs / 1000);
   const diffMinutes = Math.floor(diffSeconds / 60);
   const diffHours = Math.floor(diffMinutes / 60);
   const diffDays = Math.floor(diffHours / 24);
   const diffMonths = Math.floor(diffDays / 30);
   const diffYears = Math.floor(diffDays / 365);
 
-  if (diffSeconds < 0) {
-    // Future dates
-    const futureDiffSeconds = Math.abs(diffSeconds);
-    const futureDiffMinutes = Math.abs(diffMinutes);
-    const futureDiffHours = Math.abs(diffHours);
-    const futureDiffDays = Math.abs(diffDays);
-    const futureDiffMonths = Math.abs(diffMonths);
-    const futureDiffYears = Math.abs(diffYears);
+  const keys = diffMs < 0 ? T.GLOBAL_RELATIVE_TIME.FUTURE : T.GLOBAL_RELATIVE_TIME.PAST;
 
-    if (futureDiffSeconds < 45) {
-      return translateService.instant(T.GLOBAL_RELATIVE_TIME.FUTURE.FEW_SECONDS);
-    } else if (futureDiffSeconds < 90) {
-      return translateService.instant(T.GLOBAL_RELATIVE_TIME.FUTURE.A_MINUTE);
-    } else if (futureDiffMinutes < 45) {
-      return translateService.instant(T.GLOBAL_RELATIVE_TIME.FUTURE.MINUTES, {
-        count: futureDiffMinutes,
-      });
-    } else if (futureDiffMinutes < 90) {
-      return translateService.instant(T.GLOBAL_RELATIVE_TIME.FUTURE.AN_HOUR);
-    } else if (futureDiffHours < 22) {
-      return translateService.instant(T.GLOBAL_RELATIVE_TIME.FUTURE.HOURS, {
-        count: futureDiffHours,
-      });
-    } else if (futureDiffHours < 36) {
-      return translateService.instant(T.GLOBAL_RELATIVE_TIME.FUTURE.A_DAY);
-    } else if (futureDiffDays < 25) {
-      return translateService.instant(T.GLOBAL_RELATIVE_TIME.FUTURE.DAYS, {
-        count: futureDiffDays,
-      });
-    } else if (futureDiffDays < 45) {
-      return translateService.instant(T.GLOBAL_RELATIVE_TIME.FUTURE.A_MONTH);
-    } else if (futureDiffMonths < 11) {
-      return translateService.instant(T.GLOBAL_RELATIVE_TIME.FUTURE.MONTHS, {
-        count: futureDiffMonths,
-      });
-    } else if (futureDiffYears === 1) {
-      return translateService.instant(T.GLOBAL_RELATIVE_TIME.FUTURE.A_YEAR);
-    } else {
-      return translateService.instant(T.GLOBAL_RELATIVE_TIME.FUTURE.YEARS, {
-        count: futureDiffYears,
-      });
-    }
-  }
-
-  // Past dates
   if (diffSeconds < 45) {
-    return translateService.instant(T.GLOBAL_RELATIVE_TIME.PAST.FEW_SECONDS);
+    return translateService.instant(keys.FEW_SECONDS);
   } else if (diffSeconds < 90) {
-    return translateService.instant(T.GLOBAL_RELATIVE_TIME.PAST.A_MINUTE);
+    return translateService.instant(keys.A_MINUTE);
   } else if (diffMinutes < 45) {
-    return translateService.instant(T.GLOBAL_RELATIVE_TIME.PAST.MINUTES, {
+    return translateService.instant(keys.MINUTES, {
       count: diffMinutes,
     });
   } else if (diffMinutes < 90) {
-    return translateService.instant(T.GLOBAL_RELATIVE_TIME.PAST.AN_HOUR);
+    return translateService.instant(keys.AN_HOUR);
   } else if (diffHours < 22) {
-    return translateService.instant(T.GLOBAL_RELATIVE_TIME.PAST.HOURS, {
+    return translateService.instant(keys.HOURS, {
       count: diffHours,
     });
   } else if (diffHours < 36) {
-    return translateService.instant(T.GLOBAL_RELATIVE_TIME.PAST.A_DAY);
+    return translateService.instant(keys.A_DAY);
   } else if (diffDays < 25) {
-    return translateService.instant(T.GLOBAL_RELATIVE_TIME.PAST.DAYS, {
+    return translateService.instant(keys.DAYS, {
       count: diffDays,
     });
   } else if (diffDays < 45) {
-    return translateService.instant(T.GLOBAL_RELATIVE_TIME.PAST.A_MONTH);
+    return translateService.instant(keys.A_MONTH);
   } else if (diffMonths < 11) {
-    return translateService.instant(T.GLOBAL_RELATIVE_TIME.PAST.MONTHS, {
+    return translateService.instant(keys.MONTHS, {
       count: diffMonths,
     });
   } else if (diffYears <= 1) {
-    return translateService.instant(T.GLOBAL_RELATIVE_TIME.PAST.A_YEAR);
+    return translateService.instant(keys.A_YEAR);
   } else {
-    return translateService.instant(T.GLOBAL_RELATIVE_TIME.PAST.YEARS, {
+    return translateService.instant(keys.YEARS, {
       count: diffYears,
     });
   }

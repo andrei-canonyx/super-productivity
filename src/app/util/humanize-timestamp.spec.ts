@@ -151,6 +151,36 @@ describe('humanizeTimestamp', () => {
       const date = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
       expect(humanizeTimestamp(date, mockTranslateService)).toBe('in 7 days');
     });
+
+    // Non-exact offsets: units must be floored on the absolute diff, not rounded
+    // away from zero (which would overstate the remaining time by one unit).
+    it('should not round up non-exact future offsets', () => {
+      const MIN = 60 * 1000;
+      const HOUR = 60 * MIN;
+      const DAY = 24 * HOUR;
+      const at = (ms: number): string =>
+        humanizeTimestamp(new Date(now.getTime() + ms), mockTranslateService);
+
+      expect(at(44 * MIN + 30 * 1000)).toBe('in 44 minutes');
+      expect(at(3 * HOUR + MIN)).toBe('in 3 hours');
+      expect(at(2 * DAY + HOUR)).toBe('in 2 days');
+      expect(at(3 * 30 * DAY + DAY)).toBe('in 3 months');
+      expect(at(330 * DAY)).toBe('in a year');
+      expect(at(400 * DAY)).toBe('in a year');
+      expect(at(3 * 365 * DAY + 10 * DAY)).toBe('in 3 years');
+    });
+
+    it('should mirror past output for the same non-exact offsets', () => {
+      const MIN = 60 * 1000;
+      const HOUR = 60 * MIN;
+      const DAY = 24 * HOUR;
+      const past = (ms: number): string =>
+        humanizeTimestamp(new Date(now.getTime() - ms), mockTranslateService);
+
+      expect(past(3 * HOUR + MIN)).toBe('3 hours ago');
+      expect(past(2 * DAY + HOUR)).toBe('2 days ago');
+      expect(past(400 * DAY)).toBe('a year ago');
+    });
   });
 
   it('should handle timestamps', () => {
