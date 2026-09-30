@@ -132,7 +132,7 @@ describe('JiraApiService', () => {
 
       // Timezone offset without colon (to match ZZ format)
       const offsetMinutes = date.getTimezoneOffset();
-      const offsetHours = Math.abs(Math.floor(offsetMinutes / 60));
+      const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
       const offsetMinPart = Math.abs(offsetMinutes % 60);
       const offsetSign = offsetMinutes <= 0 ? '+' : '-';
       const offsetFormatted = `${offsetSign}${pad(offsetHours)}${pad(offsetMinPart)}`;
