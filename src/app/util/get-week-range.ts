@@ -14,15 +14,10 @@ export interface WeekRange {
  * @returns An object containing the start and end dates of the week.
  */
 export const getWeekRange = (relativeDate: Date, firstDayOfWeek: number): WeekRange => {
-  // Get timezone offset in minutes
-  const timezoneOffsetInMinutes = relativeDate.getTimezoneOffset();
-  const timezoneOffsetInMilliseconds = timezoneOffsetInMinutes * 60000; // Convert to milliseconds
-
-  // Adjust the date by the timezone offset
-  const adjustedDate = new Date(relativeDate.getTime() + timezoneOffsetInMilliseconds);
-
-  // Get the day of the week from the adjusted date
-  const dayOfWeek = adjustedDate.getDay();
+  // Work purely from local date parts: callers pass local dates (e.g. from
+  // parseDbDateStr or new Date()), so shifting by the timezone offset would
+  // move local midnight/evening times into the neighbouring day.
+  const dayOfWeek = relativeDate.getDay();
 
   // Calculate the shift to determine the start of the week
   const shift =
@@ -30,15 +25,17 @@ export const getWeekRange = (relativeDate: Date, firstDayOfWeek: number): WeekRa
       ? dayOfWeek - firstDayOfWeek
       : 7 - (firstDayOfWeek - dayOfWeek);
 
-  // Set the start of the week
-  const startOfWeek = new Date(adjustedDate);
-  startOfWeek.setDate(adjustedDate.getDate() - shift);
-  startOfWeek.setHours(0, 0, 0, 0); // Set time to the start of the day
+  // Start of the week at local midnight
+  const startOfWeek = new Date(
+    relativeDate.getFullYear(),
+    relativeDate.getMonth(),
+    relativeDate.getDate() - shift,
+  );
 
-  // Set the end of the week (6 days later)
+  // End of the week (6 days later) at the end of the local day
   const endOfWeek = new Date(startOfWeek);
   endOfWeek.setDate(startOfWeek.getDate() + 6);
-  endOfWeek.setHours(23, 59, 59, 999); // Set time to the end of the day
+  endOfWeek.setHours(23, 59, 59, 999);
 
   return {
     start: startOfWeek,
