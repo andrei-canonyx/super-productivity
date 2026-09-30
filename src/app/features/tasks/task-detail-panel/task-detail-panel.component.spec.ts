@@ -7,6 +7,7 @@ import { TaskAttachmentService } from '../task-attachment/task-attachment.servic
 import { TaskService } from '../task.service';
 import { LayoutService } from '../../../core-ui/layout/layout.service';
 import { GlobalConfigService } from '../../config/global-config.service';
+import { GlobalTrackingIntervalService } from '../../../core/global-tracking-interval/global-tracking-interval.service';
 import { IssueService } from '../../issue/issue.service';
 import { TaskRepeatCfgService } from '../../task-repeat-cfg/task-repeat-cfg.service';
 import { MatDialog } from '@angular/material/dialog';
@@ -36,9 +37,11 @@ describe('TaskDetailPanelComponent', () => {
   let mockAttachmentService: jasmine.SpyObj<TaskAttachmentService>;
   let mockTaskService: jasmine.SpyObj<TaskService>;
   let isXs: WritableSignal<boolean>;
+  let todayDateStr: WritableSignal<string>;
 
   beforeEach(async () => {
     isXs = signal(true);
+    todayDateStr = signal('2027-01-01');
     mockClipboardImageService = jasmine.createSpyObj('ClipboardImageService', [
       'handlePasteWithProgress',
     ]);
@@ -116,6 +119,7 @@ describe('TaskDetailPanelComponent', () => {
         { provide: DateTimeFormatService, useValue: mockDateTimeFormatService },
         { provide: Store, useValue: mockStore },
         { provide: MentionConfigService, useValue: { mentionConfig$: EMPTY } },
+        { provide: GlobalTrackingIntervalService, useValue: { todayDateStr } },
       ],
     })
       .overrideComponent(TaskContextMenuComponent, {
@@ -329,6 +333,24 @@ describe('TaskDetailPanelComponent', () => {
     });
   });
 
+  describe('isOverdue day rollover', () => {
+    it('flips to overdue when the day changes while the panel stays open', () => {
+      componentRef.setInput('task', {
+        ...MOCK_TASK,
+        isDone: false,
+        dueDay: '2027-01-01',
+        dueWithTime: undefined,
+      });
+      fixture.detectChanges();
+      expect(component.isOverdue()).toBe(false);
+
+      // midnight passes while the panel stays open on the same task reference
+      todayDateStr.set('2027-01-02');
+
+      expect(component.isOverdue()).toBe(true);
+    });
+  });
+
   describe('title editor sizing (#9641)', () => {
     // task-title sizes its edit box from an invisible .height-measure span and
     // overlays an absolutely positioned, overflow:hidden textarea on it. If the
@@ -442,6 +464,10 @@ describe('TaskDetailPanelComponent stale-focus guard', () => {
         { provide: Store, useValue: { select: () => EMPTY, dispatch: () => undefined } },
         { provide: TranslateService, useValue: { instant: (k: string) => k } },
         { provide: MentionConfigService, useValue: { mentionConfig$: EMPTY } },
+        {
+          provide: GlobalTrackingIntervalService,
+          useValue: { todayDateStr: () => '2027-01-01' },
+        },
       ],
     })
       // Drop the real template/child components — only the focus timing logic is under test.
@@ -631,6 +657,10 @@ describe('TaskDetailPanelComponent notes target does not auto-edit', () => {
         { provide: Store, useValue: { select: () => EMPTY, dispatch: () => undefined } },
         { provide: TranslateService, useValue: { instant: (k: string) => k } },
         { provide: MentionConfigService, useValue: { mentionConfig$: EMPTY } },
+        {
+          provide: GlobalTrackingIntervalService,
+          useValue: { todayDateStr: () => '2027-01-01' },
+        },
       ],
     })
       .overrideComponent(TaskDetailPanelComponent, {
@@ -735,6 +765,10 @@ describe('TaskDetailPanelComponent add sub-task', () => {
         { provide: Store, useValue: { select: () => EMPTY, dispatch: () => undefined } },
         { provide: TranslateService, useValue: { instant: (k: string) => k } },
         { provide: MentionConfigService, useValue: { mentionConfig$: EMPTY } },
+        {
+          provide: GlobalTrackingIntervalService,
+          useValue: { todayDateStr: () => '2027-01-01' },
+        },
       ],
     })
       .overrideComponent(TaskDetailPanelComponent, {
