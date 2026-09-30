@@ -22,6 +22,32 @@ import { isValidSplitTime } from '../../../util/is-valid-split-time';
 import { getDateTimeFromClockString } from '../../../util/get-date-time-from-clock-string';
 import { dateStrToUtcDate } from '../../../util/date-str-to-utc-date';
 import { TaskTimeSyncService } from '../../tasks/task-time-sync.service';
+import { selectConfigFeatureState } from '../../config/store/global-config.reducer';
+import { GlobalConfigState } from '../../config/global-config.model';
+
+interface AutoAppliedEstimates {
+  task: number;
+  subTask: number;
+}
+
+/**
+ * setDefaultEstimateIfNonGiven$ fills in the global "Default task estimate"
+ * (Settings > Time Tracking) for every new task created without one, repeat
+ * instances included. That value is not a user edit, so an instance whose
+ * template has no estimate still counts as unmodified when it carries it.
+ */
+const _isTemplateEstimate = (
+  estimate: number | null | undefined,
+  templateEstimate: number | null | undefined,
+  autoAppliedEstimate: number,
+): boolean => {
+  const actual = estimate ?? 0;
+  const template = templateEstimate ?? 0;
+  return (
+    actual === template ||
+    (!template && autoAppliedEstimate > 0 && actual === autoAppliedEstimate)
+  );
+};
 
 const _sameStringSet = (a: readonly string[], b: readonly string[]): boolean => {
   if (a.length !== b.length) {
@@ -76,7 +102,11 @@ const _hasTemplateSchedule = (
   return _isNil(task.dueWithTime) && task.dueDay === dueStr && _isNil(task.remindAt);
 };
 
-const _hasTemplateSubTasks = (task: TaskWithSubTasks, cfg: TaskRepeatCfg): boolean => {
+const _hasTemplateSubTasks = (
+  task: TaskWithSubTasks,
+  cfg: TaskRepeatCfg,
+  autoAppliedEstimates: AutoAppliedEstimates,
+): boolean => {
   const templates = cfg.shouldInheritSubtasks ? (cfg.subTaskTemplates ?? []) : [];
   if (task.subTasks.length !== templates.length) {
     return false;
@@ -86,7 +116,11 @@ const _hasTemplateSubTasks = (task: TaskWithSubTasks, cfg: TaskRepeatCfg): boole
     return (
       !!subTask &&
       subTask.title === template.title &&
-      (subTask.timeEstimate ?? 0) === (template.timeEstimate ?? 0) &&
+      _isTemplateEstimate(
+        subTask.timeEstimate,
+        template.timeEstimate,
+        autoAppliedEstimates.subTask,
+      ) &&
       (subTask.notes ?? '').trim() === (template.notes ?? '').trim() &&
       (subTask.attachments?.length ?? 0) === 0 &&
       _sameStringSet(subTask.tagIds ?? [], []) &&
@@ -103,9 +137,14 @@ const _isUnmodifiedSkipOverdueInstance = (
   cfg: TaskRepeatCfg,
   newestInstanceProjectId: string,
   dueStr: string,
+  autoAppliedEstimates: AutoAppliedEstimates,
 ): boolean =>
   task.title === (cfg.title ?? '') &&
-  (task.timeEstimate ?? 0) === (cfg.defaultEstimate ?? 0) &&
+  _isTemplateEstimate(
+    task.timeEstimate,
+    cfg.defaultEstimate,
+    autoAppliedEstimates.task,
+  ) &&
   _sameStringSet(
     task.tagIds ?? [],
     (cfg.tagIds ?? []).filter((tagId) => tagId !== TODAY_TAG.id),
@@ -117,7 +156,7 @@ const _isUnmodifiedSkipOverdueInstance = (
     : task.projectId === newestInstanceProjectId) &&
   _hasTemplateSchedule(task, cfg, dueStr) &&
   _hasNoDeadlineFields(task) &&
-  _hasTemplateSubTasks(task, cfg);
+  _hasTemplateSubTasks(task, cfg, autoAppliedEstimates);
 
 @Injectable()
 export class TaskRepeatCleanupEffects {
@@ -171,9 +210,11 @@ export class TaskRepeatCleanupEffects {
               forkJoin([
                 this._store.select(selectAllRepeatableTaskWithSubTasks).pipe(first()),
                 this._store.select(selectAllTaskRepeatCfgs).pipe(first()),
+                this._store.select(selectConfigFeatureState).pipe(first()),
               ]),
             ),
-            switchMap(([repeatableTasks, repeatCfgs]) => {
+            switchMap(([repeatableTasks, repeatCfgs, globalCfg]) => {
+              const autoAppliedEstimates = this._getAutoAppliedEstimates(globalCfg);
               const cfgById = new Map<string, TaskRepeatCfg>(
                 repeatCfgs.map((c) => [c.id as string, c]),
               );
@@ -243,7 +284,8 @@ export class TaskRepeatCleanupEffects {
                   // are genuinely OVERDUE (due before today) — never today's or
                   // a future instance. And never discard a prior-day instance
                   // the user actually edited. _isUnmodifiedSkipOverdueInstance
-                  // compares: title, timeEstimate, tagIds (excluding TODAY_TAG),
+                  // compares: title, timeEstimate (the auto-applied global
+                  // default estimate counts as unmodified), tagIds (excluding TODAY_TAG),
                   // notes, attachments (must be empty), projectId, and the
                   // subtask templates (title/timeEstimate/notes).
                   // Subtask *progress* (completion / timeSpent) is caught
@@ -262,6 +304,7 @@ export class TaskRepeatCleanupEffects {
                         cfg,
                         tasks[0].projectId,
                         dueStr,
+                        autoAppliedEstimates,
                       )
                     ) {
                       continue;
@@ -312,4 +355,13 @@ export class TaskRepeatCleanupEffects {
     },
     { dispatch: false },
   );
+
+  private _getAutoAppliedEstimates(
+    globalCfg: GlobalConfigState | undefined,
+  ): AutoAppliedEstimates {
+    return {
+      task: globalCfg?.timeTracking?.defaultEstimate || 0,
+      subTask: globalCfg?.timeTracking?.defaultEstimateSubTasks || 0,
+    };
+  }
 }
