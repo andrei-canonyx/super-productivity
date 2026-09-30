@@ -159,6 +159,9 @@ export const getNextRepeatOccurrence = (
         ) {
           return checkDate;
         }
+        // Reset to the 1st before stepping: on day 29-31, setMonth would
+        // overflow short months (Jan 31 + 1 month = Mar 3) and skip them.
+        checkDate.setDate(1);
         checkDate.setMonth(checkDate.getMonth() + 1);
         setDateSafely(checkDate, dayOfMonthRepeat);
       }

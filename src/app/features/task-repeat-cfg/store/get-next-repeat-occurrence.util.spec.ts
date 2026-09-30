@@ -308,6 +308,36 @@ describe('getNextRepeatOccurrence()', () => {
     });
   });
 
+  describe('MONTHLY month-end rollover', () => {
+    it('does not skip February for day 31 with repeatEvery 2', () => {
+      const cfg = dummyRepeatable('ID1', {
+        repeatCycle: 'MONTHLY',
+        repeatEvery: 2,
+        lastTaskCreationDay: getDbDateStr(new Date(2021, 11, 31)),
+      });
+      testCase(cfg, new Date(2022, 0, 1), new Date(2021, 11, 31), new Date(2022, 1, 28));
+    });
+
+    it('does not skip February for monthlyLastDay with repeatEvery 2', () => {
+      const cfg = dummyRepeatable('ID1', {
+        repeatCycle: 'MONTHLY',
+        repeatEvery: 2,
+        monthlyLastDay: true,
+        lastTaskCreationDay: getDbDateStr(new Date(2021, 11, 31)),
+      });
+      testCase(cfg, new Date(2022, 0, 1), new Date(2021, 11, 31), new Date(2022, 1, 28));
+    });
+
+    it('does not skip February for day 30 with repeatEvery 2', () => {
+      const cfg = dummyRepeatable('ID1', {
+        repeatCycle: 'MONTHLY',
+        repeatEvery: 2,
+        lastTaskCreationDay: getDbDateStr(new Date(2021, 11, 30)),
+      });
+      testCase(cfg, new Date(2022, 0, 1), new Date(2021, 11, 30), new Date(2022, 1, 28));
+    });
+  });
+
   describe('MONTHLY Nth weekday (issue #6040)', () => {
     it('returns the first Thursday of next month', () => {
       const startDate = new Date(2026, 0, 1); // Jan 1, 2026 (Thursday)
