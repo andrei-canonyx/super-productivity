@@ -778,6 +778,21 @@ describe('preprocessMarkdown', () => {
     expect(result).toBe('![alt](http://example.com/image.png "A title")');
   });
 
+  it('should size an image that has spaces after the opening paren', () => {
+    // the live editor's SIZED_IMAGE_RE accepts this, so the read-only
+    // render has to agree
+    const input = '![alt]( url.png =10x20)';
+    const result = preprocessMarkdown(input);
+    expect(result).toBe('![alt](url.png "10|20")');
+  });
+
+  it('should not treat a newline after the opening paren as sizing syntax', () => {
+    // the live editor matches a single line, so a multi-line image stays raw
+    const input = '![alt](\nurl.png =10x20)';
+    const result = preprocessMarkdown(input);
+    expect(result).toBe(input);
+  });
+
   it('should leave sizing syntax inside a fenced code block alone', () => {
     const input = '```md\n![alt](url.png =200x100)\n```';
     const result = preprocessMarkdown(input);
