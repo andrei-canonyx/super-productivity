@@ -559,7 +559,10 @@ export class AddTaskBarParserService {
         if (specificTag) {
           // Remove specific tag (e.g., #tagname). Stays token-based: the ranges
           // record which characters were tags, not which tag they named.
-          const tagRegex = new RegExp(`\\s*#${specificTag}\\b`, 'gi');
+          // The title is literal text, and `\b` only knows ASCII word chars,
+          // so escape it and end the token at whitespace like the parser does.
+          const escapedTag = specificTag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const tagRegex = new RegExp(`\\s*#${escapedTag}(?=\\s|$)`, 'gi');
           cleanedInput = cleanedInput.replace(tagRegex, '');
         } else {
           // Remove all tags (e.g., #tag1 #tag2)
