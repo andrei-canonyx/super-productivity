@@ -805,6 +805,34 @@ describe('AddTaskBarParserService', () => {
         const result = service.removeShortSyntaxFromInput(input, 'tags', 'urgent');
         expect(result).toBe('Task content');
       });
+
+      it('should remove a tag whose title contains regex characters', async () => {
+        expect(service.removeShortSyntaxFromInput('Task #C++', 'tags', 'C++')).toBe(
+          'Task',
+        );
+      });
+
+      it('should remove a tag whose title contains non-ASCII characters', async () => {
+        expect(service.removeShortSyntaxFromInput('Buy milk #日本', 'tags', '日本')).toBe(
+          'Buy milk',
+        );
+        expect(
+          service.removeShortSyntaxFromInput('Task #café later', 'tags', 'café'),
+        ).toBe('Task later');
+      });
+
+      it('should only remove the tag with the exact title', async () => {
+        expect(
+          service.removeShortSyntaxFromInput('Task #v1x0 #v1.0', 'tags', 'v1.0'),
+        ).toBe('Task #v1x0');
+        expect(
+          service.removeShortSyntaxFromInput(
+            'Task #urgent #urgent-later',
+            'tags',
+            'urgent',
+          ),
+        ).toBe('Task #urgent-later');
+      });
     });
 
     describe('removal from the ranges the parser consumed', () => {
