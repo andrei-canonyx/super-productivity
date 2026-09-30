@@ -23,7 +23,6 @@
   <div class="wrap-buttons">
     @if (!data.hideCancelButton) {
       <button
-        tabindex="1"
         #cancelButton
         (click)="close(false)"
         mat-button
@@ -35,13 +34,13 @@
     }
 
     <button
-      tabindex="2"
       #confirmButton
       (click)="close(true)"
       e2e="confirmBtn"
       color="primary"
       type="button"
       mat-flat-button
+      cdkFocusInitial
       (keydown.ArrowLeft)="!data.hideCancelButton && focusCancelButton()"
     >
       {{ data.okTxt || T.G.OK | translate }}

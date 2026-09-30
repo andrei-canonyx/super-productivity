@@ -12,6 +12,11 @@ import { MatIcon } from '@angular/material/icon';
 import { TranslatePipe } from '@ngx-translate/core';
 import { MatCheckbox } from '@angular/material/checkbox';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
+// Controls that act on Enter themselves; confirming on top would double-fire.
+const ENTER_HANDLING_SELECTOR =
+  'button, a[href], input, textarea, select, [contenteditable="true"]';
 
 @Component({
   selector: 'dialog-confirm',
@@ -39,6 +44,33 @@ export class DialogConfirmComponent {
   readonly T: typeof T = T;
 
   dontShowAgain = false;
+
+  constructor() {
+    // Enter confirms when no control has focus, e.g. the dialog container when
+    // autoFocus is off (touch-primary devices). A focused button such as
+    // Cancel handles Enter natively, so leave that to the browser.
+    this._matDialogRef
+      .keydownEvents()
+      .pipe(takeUntilDestroyed())
+      .subscribe((ev) => {
+        const target = ev.target;
+        if (
+          ev.key !== 'Enter' ||
+          ev.repeat ||
+          ev.isComposing ||
+          ev.defaultPrevented ||
+          ev.altKey ||
+          ev.ctrlKey ||
+          ev.metaKey ||
+          ev.shiftKey ||
+          (target instanceof Element && target.closest(ENTER_HANDLING_SELECTOR))
+        ) {
+          return;
+        }
+        ev.preventDefault();
+        this.close(true);
+      });
+  }
 
   close(res: boolean | string | undefined): void {
     if (this.data.showDontShowAgain) {
