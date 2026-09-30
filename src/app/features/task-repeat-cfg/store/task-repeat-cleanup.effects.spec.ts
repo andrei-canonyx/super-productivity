@@ -22,12 +22,16 @@ import { getDateTimeFromClockString } from '../../../util/get-date-time-from-clo
 import { remindOptionToMilliseconds } from '../../tasks/util/remind-option-to-milliseconds';
 import { TODAY_TAG } from '../../tag/tag.const';
 import { TaskTimeSyncService } from '../../tasks/task-time-sync.service';
+import { selectConfigFeatureState } from '../../config/store/global-config.reducer';
+import { DEFAULT_GLOBAL_CONFIG } from '../../config/default-global-config.const';
+import { GlobalConfigState } from '../../config/global-config.model';
 
 describe('TaskRepeatCleanupEffects', () => {
   let effects: TaskRepeatCleanupEffects;
   let store: jasmine.SpyObj<Store>;
   let repeatableTasks$: BehaviorSubject<TaskWithSubTasks[]>;
   let repeatCfgs$: BehaviorSubject<TaskRepeatCfg[]>;
+  let globalConfig$: BehaviorSubject<GlobalConfigState>;
   let taskTimeSync: jasmine.SpyObj<TaskTimeSyncService>;
 
   const DAY_MS = 24 * 60 * 60 * 1000;
@@ -54,13 +58,18 @@ describe('TaskRepeatCleanupEffects', () => {
   beforeEach(() => {
     repeatableTasks$ = new BehaviorSubject<TaskWithSubTasks[]>([]);
     repeatCfgs$ = new BehaviorSubject<TaskRepeatCfg[]>([]);
+    globalConfig$ = new BehaviorSubject<GlobalConfigState>(DEFAULT_GLOBAL_CONFIG);
 
     const storeSpy = jasmine.createSpyObj<Store>('Store', ['select', 'dispatch']);
-    storeSpy.select.and.callFake((selector: unknown) =>
-      selector === selectAllTaskRepeatCfgs
-        ? (repeatCfgs$.asObservable() as ReturnType<Store['select']>)
-        : (repeatableTasks$.asObservable() as ReturnType<Store['select']>),
-    );
+    storeSpy.select.and.callFake((selector: unknown) => {
+      if (selector === selectAllTaskRepeatCfgs) {
+        return repeatCfgs$.asObservable() as ReturnType<Store['select']>;
+      }
+      if (selector === selectConfigFeatureState) {
+        return globalConfig$.asObservable() as ReturnType<Store['select']>;
+      }
+      return repeatableTasks$.asObservable() as ReturnType<Store['select']>;
+    });
 
     const syncTriggerSpy = {
       afterInitialSyncDoneStrict$: of(true),
@@ -753,6 +762,114 @@ describe('TaskRepeatCleanupEffects', () => {
       expect(getDispatchedDeleteIds())
         .withContext('an instance with a user-edited estimate must be preserved')
         .toEqual([]);
+
+      sub.unsubscribe();
+    }));
+
+    it('deletes an overdue instance whose estimate is the auto-applied global default estimate', fakeAsync(() => {
+      // Settings > Time Tracking "Default task estimate" is applied to every new
+      // instance of a template without its own estimate
+      // (setDefaultEstimateIfNonGiven$). That is not a user edit, so it must not
+      // make skipOverdue keep piling up overdue instances.
+      const globalDefault = 30 * 60 * 1000;
+      globalConfig$.next({
+        ...DEFAULT_GLOBAL_CONFIG,
+        timeTracking: {
+          ...DEFAULT_GLOBAL_CONFIG.timeTracking,
+          defaultEstimate: globalDefault,
+        },
+      });
+      repeatCfgs$.next([
+        skipOverdueCfg('cfg-global-estimate', '', { title: 'Water plants' }),
+      ]);
+      const yesterdayInstance: Task = {
+        ...DEFAULT_TASK,
+        projectId: 'p1',
+        id: 'global-estimate-yesterday',
+        title: 'Water plants',
+        repeatCfgId: 'cfg-global-estimate',
+        created: yesterdayMs,
+        dueDay: getDbDateStr(yesterdayMs),
+        isDone: false,
+        timeSpent: 0,
+        timeEstimate: globalDefault,
+      };
+      const todayInstance: Task = {
+        ...DEFAULT_TASK,
+        projectId: 'p1',
+        id: 'global-estimate-today',
+        title: 'Water plants',
+        repeatCfgId: 'cfg-global-estimate',
+        created: todayMs,
+        dueDay: getDbDateStr(todayMs),
+        isDone: false,
+        timeSpent: 0,
+        timeEstimate: globalDefault,
+      };
+
+      repeatableTasks$.next([
+        wrapWithSubTasks(yesterdayInstance),
+        wrapWithSubTasks(todayInstance),
+      ]);
+
+      const sub = effects.cleanupDuplicateRepeatInstances$.subscribe();
+      tick(3001);
+
+      expect(getDispatchedDeleteIds()).toEqual(['global-estimate-yesterday']);
+
+      sub.unsubscribe();
+    }));
+
+    it('deletes an overdue instance whose subtask estimate is the auto-applied global sub task default', fakeAsync(() => {
+      const globalSubDefault = 10 * 60 * 1000;
+      globalConfig$.next({
+        ...DEFAULT_GLOBAL_CONFIG,
+        timeTracking: {
+          ...DEFAULT_GLOBAL_CONFIG.timeTracking,
+          defaultEstimateSubTasks: globalSubDefault,
+        },
+      });
+      repeatCfgs$.next([
+        skipOverdueCfg('cfg-global-sub-estimate', '', {
+          title: 'Water plants',
+          shouldInheritSubtasks: true,
+          subTaskTemplates: [{ title: 'Check soil', timeEstimate: 0, notes: '' }],
+        }),
+      ]);
+      const makeInstance = (id: string, created: number): TaskWithSubTasks => {
+        const instance = wrapWithSubTasks({
+          ...DEFAULT_TASK,
+          projectId: 'p1',
+          id,
+          title: 'Water plants',
+          repeatCfgId: 'cfg-global-sub-estimate',
+          created,
+          dueDay: getDbDateStr(created),
+          isDone: false,
+          timeSpent: 0,
+        } as Task);
+        instance.subTasks.push({
+          ...DEFAULT_TASK,
+          projectId: 'p1',
+          id: `${id}-sub`,
+          title: 'Check soil',
+          parentId: id,
+          isDone: false,
+          timeSpent: 0,
+          timeEstimate: globalSubDefault,
+        } as Task);
+        return instance;
+      };
+
+      repeatableTasks$.next([
+        makeInstance('global-sub-yesterday', yesterdayMs),
+        makeInstance('global-sub-today', todayMs),
+      ]);
+
+      const sub = effects.cleanupDuplicateRepeatInstances$.subscribe();
+      tick(3001);
+
+      expect(getDispatchedDeleteIds()).toEqual(['global-sub-yesterday']);
 
       sub.unsubscribe();
     }));
