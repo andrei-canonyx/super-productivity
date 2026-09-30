@@ -1,6 +1,14 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import {
+  MAT_DIALOG_DATA,
+  MatDialog,
+  MatDialogConfig,
+  MatDialogModule,
+  MatDialogRef,
+  MatDialogState,
+} from '@angular/material/dialog';
+import { EMPTY, firstValueFrom } from 'rxjs';
 import { TranslateModule } from '@ngx-translate/core';
 import { DialogConfirmComponent } from './dialog-confirm.component';
 import { By } from '@angular/platform-browser';
@@ -11,7 +19,8 @@ describe('DialogConfirmComponent', () => {
   let mockDialogRef: jasmine.SpyObj<MatDialogRef<DialogConfirmComponent>>;
 
   const createComponent = async (dialogData: any): Promise<void> => {
-    mockDialogRef = jasmine.createSpyObj('MatDialogRef', ['close']);
+    mockDialogRef = jasmine.createSpyObj('MatDialogRef', ['close', 'keydownEvents']);
+    mockDialogRef.keydownEvents.and.returnValue(EMPTY);
 
     await TestBed.configureTestingModule({
       imports: [
@@ -232,6 +241,102 @@ describe('DialogConfirmComponent', () => {
       confirmButton.nativeElement.click();
 
       expect(mockDialogRef.close).toHaveBeenCalledWith(true);
+    });
+  });
+  describe('keyboard interaction (real MatDialog)', () => {
+    let matDialog: MatDialog;
+
+    const openDialog = async (
+      cfg: MatDialogConfig = {},
+    ): Promise<MatDialogRef<DialogConfirmComponent>> => {
+      const ref = matDialog.open(DialogConfirmComponent, {
+        data: { message: 'Delete task?' },
+        ...cfg,
+      });
+      await firstValueFrom(ref.afterOpened());
+      await new Promise((resolve) => setTimeout(resolve));
+      return ref;
+    };
+
+    const getButtons = (): {
+      cancel: HTMLButtonElement;
+      confirm: HTMLButtonElement;
+    } => {
+      const buttons = Array.from(
+        document.querySelectorAll<HTMLButtonElement>('dialog-confirm button'),
+      );
+      return {
+        cancel: buttons.find((b) => b.getAttribute('e2e') !== 'confirmBtn')!,
+        confirm: buttons.find((b) => b.getAttribute('e2e') === 'confirmBtn')!,
+      };
+    };
+
+    const closedResultOrTimeout = (
+      ref: MatDialogRef<DialogConfirmComponent>,
+    ): Promise<unknown> =>
+      Promise.race([
+        firstValueFrom(ref.afterClosed()),
+        new Promise((resolve) => setTimeout(() => resolve('STILL_OPEN'), 500)),
+      ]);
+
+    const pressKey = (target: Element, key: string, keyCode: number): void => {
+      const ev = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      Object.defineProperty(ev, 'keyCode', { get: () => keyCode });
+      target.dispatchEvent(ev);
+    };
+
+    beforeEach(async () => {
+      await TestBed.configureTestingModule({
+        imports: [NoopAnimationsModule, MatDialogModule, TranslateModule.forRoot()],
+      }).compileComponents();
+      matDialog = TestBed.inject(MatDialog);
+    });
+
+    afterEach(() => {
+      matDialog.closeAll();
+    });
+
+    it('should focus the confirm button initially so Enter confirms', async () => {
+      await openDialog();
+      const { confirm } = getButtons();
+      expect(document.activeElement).toBe(confirm);
+    });
+
+    it('should not use positive tabindex (breaks the focus trap wrap-around)', async () => {
+      await openDialog();
+      const { cancel, confirm } = getButtons();
+      expect(cancel.hasAttribute('tabindex')).toBeFalse();
+      expect(confirm.hasAttribute('tabindex')).toBeFalse();
+    });
+
+    it('should confirm on Enter when autoFocus is disabled (touch devices)', async () => {
+      const ref = await openDialog({ autoFocus: false });
+      const closedPromise = closedResultOrTimeout(ref);
+      const container = document.querySelector('mat-dialog-container')!;
+      expect(document.activeElement).toBe(container);
+
+      pressKey(container, 'Enter', 13);
+
+      expect(await closedPromise).toBe(true);
+    });
+
+    it('should not confirm on Enter when the cancel button is focused', async () => {
+      const ref = await openDialog();
+      const { cancel } = getButtons();
+      cancel.focus();
+
+      pressKey(cancel, 'Enter', 13);
+
+      expect(ref.getState()).toBe(MatDialogState.OPEN);
+    });
+
+    it('should dismiss on Escape without confirming', async () => {
+      const ref = await openDialog();
+      const closedPromise = closedResultOrTimeout(ref);
+
+      pressKey(getButtons().confirm, 'Escape', 27);
+
+      expect(await closedPromise).toBeUndefined();
     });
   });
 });
