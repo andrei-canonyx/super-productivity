@@ -623,7 +623,10 @@ export class CaldavClientService {
     );
     return mappedTasks.filter(
       (t: CaldavIssue) =>
-        !filterCategory || !cfg.categoryFilter || t.labels.includes(cfg.categoryFilter),
+        // The server-side open filter only checks the COMPLETED timestamp;
+        // todos done via STATUS or PERCENT-COMPLETE alone slip through.
+        (!filterOpen || !t.completed) &&
+        (!filterCategory || !cfg.categoryFilter || t.labels.includes(cfg.categoryFilter)),
     );
   }
 
