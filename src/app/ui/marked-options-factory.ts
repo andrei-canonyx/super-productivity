@@ -51,7 +51,14 @@ export const parseImageDimensionsFromTitle = (
  */
 // Match: ![alt](url =WIDTHxHEIGHT) or ![alt](url =WIDTHx) or ![alt](url =xHEIGHT)
 // Capture groups: 1=alt, 2=url, 3=width, 4=height
-const SIZED_IMAGE_RE = /!\[([^\]]*)\]\(([^\s)]+)\s+=(\d*)x(\d*)\)/g;
+//
+// The `[^\S\n]*` after the opening paren keeps this in step with the live
+// editor's SIZED_IMAGE_RE (live-markdown-ranges.ts), which tolerates spaces
+// there. Without it `![a]( u =10x20)` is sized while editing and unsized in
+// the read-only render of the very same note. Horizontal whitespace only:
+// allowing a newline here would widen the other direction of that same
+// divergence, since the live editor matches against a single line.
+const SIZED_IMAGE_RE = /!\[([^\]]*)\]\([^\S\n]*([^\s)]+)\s+=(\d*)x(\d*)\)/g;
 
 /** An opening or closing code fence: up to three spaces, then ``` or ~~~. */
 const FENCE_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
