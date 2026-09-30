@@ -587,10 +587,9 @@ const parseProjectTracked = (
 
   if (rr && rr[0]) {
     const projectTitle: string = rr[0].trim().replace(CH_PRO, '');
-    const projectTitleToMatch = projectTitle.replaceAll(' ', '').toLowerCase();
-    const indexBeforePlus =
-      tracked.text.toLowerCase().lastIndexOf(CH_PRO + projectTitleToMatch) - 1;
-    const charBeforePlus = tracked.text.charAt(indexBeforePlus);
+    // The match starts at the "+"; searching for the squashed title instead
+    // misses whenever words follow it, which skipped the check below.
+    const charBeforePlus = tracked.text.charAt((rr.index ?? 0) - 1);
 
     // don't parse Fun title+blu as project
     if (charBeforePlus && charBeforePlus !== ' ') {

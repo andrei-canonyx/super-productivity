@@ -1172,6 +1172,29 @@ describe('shortSyntax', () => {
       expect(r).toEqual(undefined);
     });
 
+    it('should not parse a "+" inside a word when more words follow', async () => {
+      const t = {
+        ...TASK,
+        title: 'Fun title+ProjectEasyShort more words',
+      };
+      const r = await shortSyntax(t, CONFIG, [], projects);
+      expect(r).toEqual(undefined);
+    });
+
+    it('should not parse "iOS+Android" as project "Android"', async () => {
+      const t = {
+        ...TASK,
+        title: 'Compare iOS+Android behavior',
+      };
+      const r = await shortSyntax(
+        t,
+        CONFIG,
+        [],
+        [...projects, { title: 'Android', id: 'AndroidID' } as Project],
+      );
+      expect(r).toEqual(undefined);
+    });
+
     it('should work together with time estimates', async () => {
       const t = {
         ...TASK,
