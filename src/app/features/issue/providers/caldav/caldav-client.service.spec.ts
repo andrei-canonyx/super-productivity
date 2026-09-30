@@ -363,6 +363,74 @@ describe('CaldavClientService.getByIds$', () => {
   });
 });
 
+// ─── open-task queries – completion filtering ──────────────────────────────────
+
+// The server-side "open" query only excludes todos with a COMPLETED timestamp.
+// Todos marked done via STATUS:COMPLETED or PERCENT-COMPLETE:100 alone are
+// still returned and must not be offered/auto-imported as open tasks.
+describe('CaldavClientService open-task queries – completion filtering', () => {
+  let svc: CaldavClientService;
+  let calendarQuery: jasmine.Spy;
+
+  const rawTodo = (uid: string, lines: string[] = []): unknown => ({
+    url: `https://cal.example.com/${uid}.ics`,
+    etag: `"etag-${uid}"`,
+    data: [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Test//EN',
+      'BEGIN:VTODO',
+      `UID:${uid}`,
+      `SUMMARY:Todo ${uid}`,
+      ...lines,
+      'END:VTODO',
+      'END:VCALENDAR',
+    ].join('\r\n'),
+  });
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        CaldavClientService,
+        {
+          provide: SnackService,
+          useValue: jasmine.createSpyObj('SnackService', ['open']),
+        },
+      ],
+    });
+    svc = TestBed.inject(CaldavClientService);
+    calendarQuery = jasmine.createSpy('calendarQuery').and.resolveTo([
+      rawTodo('open-1'),
+      rawTodo('status-done', ['STATUS:COMPLETED']),
+      rawTodo('percent-done', ['PERCENT-COMPLETE:100']),
+      rawTodo('in-process', ['PERCENT-COMPLETE:50', 'STATUS:IN-PROCESS']),
+    ]);
+    spyOn(svc as any, '_getCalendar').and.resolveTo({ calendarQuery });
+  });
+
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('getOpenTasks$ excludes todos completed via STATUS or PERCENT-COMPLETE only', async () => {
+    const result = await firstValueFrom(svc.getOpenTasks$(MOCK_CFG));
+
+    expect(result.map((issue) => issue.id)).toEqual(['open-1', 'in-process']);
+  });
+
+  it('searchOpenTasks$ excludes todos completed via STATUS or PERCENT-COMPLETE only', async () => {
+    const result = await firstValueFrom(svc.searchOpenTasks$('Todo', MOCK_CFG));
+
+    expect(result.map((item) => item.title)).toEqual(['Todo open-1', 'Todo in-process']);
+  });
+
+  it('getByIds$ still returns completed todos (no open filter)', async () => {
+    const result = await firstValueFrom(
+      svc.getByIds$(['open-1', 'status-done'], MOCK_CFG),
+    );
+
+    expect(result.map((issue) => issue.id)).toEqual(['open-1', 'status-done']);
+  });
+});
+
 describe('CaldavClientService._getCalendar', () => {
   let svc: TestableCaldavClientService;
 
